@@ -3120,18 +3120,23 @@ local Library do
                 function Window:SetCorner()
                     local v = Library.Flags["UICorner"]
                     if v == nil then v = 6 end
-                    -- ТОЛЬКО 4 угла всего меню: UICorner ПРЯМО на MainFrame (не трогаем вложенные фреймы/картинки)
-                    for _, d in ipairs(Items["MainFrame"].Instance:GetChildren()) do
+                    local mf = Items["MainFrame"].Instance
+                    -- 1) угол самого MainFrame (основной контур меню)
+                    for _, d in ipairs(mf:GetChildren()) do
                         if d:IsA("UICorner") then d.CornerRadius = UDimNew(0, v) end
                     end
-                    -- + кнопки табов: UICorner внутри LeftTabs (не круглые)
-                    if Items["LeftTabs"] and Items["LeftTabs"].Instance then
-                        for _, d in ipairs(Items["LeftTabs"].Instance:GetDescendants()) do
-                            if d:IsA("UICorner") and d.CornerRadius.Scale == 0 then
-                                d.CornerRadius = UDimNew(0, v)
+                    -- 2) ВСЕ фоновые слои меню — сиблинги MainFrame того же размера (блюр/фон),
+                    -- чтобы скруглились все 4 угла ВСЕГО меню. Внутренние фреймы (табы/кнопки/контент) НЕ трогаем.
+                    pcall(function()
+                        for _, d in ipairs(mf.Parent:GetChildren()) do
+                            if d ~= mf and (d:IsA("Frame") or d:IsA("ImageLabel") or d:IsA("CanvasGroup")) then
+                                if math.abs(d.AbsoluteSize.X - mf.AbsoluteSize.X) < 10 and math.abs(d.AbsoluteSize.Y - mf.AbsoluteSize.Y) < 10 then
+                                    local c = d:FindFirstChildOfClass("UICorner")
+                                    if c then c.CornerRadius = UDimNew(0, v) end
+                                end
                             end
                         end
-                    end
+                    end)
                 end
 
                 Instances:Create("UIGradient", {
@@ -3878,14 +3883,16 @@ local Library do
                     end
                 end
                 
-                -- Auto-load config on initialization
+                -- Auto-load config on initialization (именованный autoload, затем авто-сейв сессии)
                 task.spawn(function()
                     task.wait(0.5)
+                    local loadedNamed = false
                     local autoLoadFile = Library.Folders.Configs .. "/autoload.txt"
                     if isfile(autoLoadFile) then
                         local success, content = pcall(readfile, autoLoadFile)
                         if success and content and isfile(content) then
                             Library:LoadConfig(readfile(content))
+                            loadedNamed = true
                             Library:Notification({
                                 Title = "Config",
                                 Description = "Auto loaded config: " .. content:match("([^/\\]+)$"),
@@ -3893,6 +3900,25 @@ local Library do
                             })
                         end
                     end
+
+                    -- АВТО-СЕЙВ СЕССИИ: всё, что настроил, само сохраняется в _autosave.json и
+                    -- восстанавливается при перезапуске (если не задан именованный autoload).
+                    local autoSavePath = Library.Folders.Configs .. "/_autosave.json"
+                    if not loadedNamed and isfile(autoSavePath) then
+                        pcall(function() Library:LoadConfig(readfile(autoSavePath)) end)
+                    end
+                    task.spawn(function()
+                        if isfolder and not isfolder(Library.Folders.Configs) then pcall(makefolder, Library.Folders.Configs) end
+                        local last = nil
+                        while true do
+                            task.wait(2)
+                            local ok, enc = pcall(function() return Library:GetConfig() end)
+                            if ok and type(enc) == "string" and enc ~= last and writefile then
+                                pcall(writefile, autoSavePath, enc)
+                                last = enc
+                            end
+                        end
+                    end)
                 end)
             end
 
