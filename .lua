@@ -1,4 +1,4 @@
---Fixed by mausyo
+
 local Library do 
     local Workspace = game:GetService("Workspace")
     local UserInputService = game:GetService("UserInputService")
@@ -3120,9 +3120,16 @@ local Library do
                 function Window:SetCorner()
                     local v = Library.Flags["UICorner"]
                     if v == nil then v = 6 end
-                    for _, d in ipairs(Items["MainFrame"].Instance:GetDescendants()) do
-                        if d:IsA("UICorner") and d.CornerRadius.Scale == 0 then
-                            d.CornerRadius = UDimNew(0, v)
+                    -- ТОЛЬКО 4 угла всего меню: UICorner ПРЯМО на MainFrame (не трогаем вложенные фреймы/картинки)
+                    for _, d in ipairs(Items["MainFrame"].Instance:GetChildren()) do
+                        if d:IsA("UICorner") then d.CornerRadius = UDimNew(0, v) end
+                    end
+                    -- + кнопки табов: UICorner внутри LeftTabs (не круглые)
+                    if Items["LeftTabs"] and Items["LeftTabs"].Instance then
+                        for _, d in ipairs(Items["LeftTabs"].Instance:GetDescendants()) do
+                            if d:IsA("UICorner") and d.CornerRadius.Scale == 0 then
+                                d.CornerRadius = UDimNew(0, v)
+                            end
                         end
                     end
                 end
