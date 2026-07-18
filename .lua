@@ -1,4 +1,4 @@
---Fixed v0.15
+--Fixed v0.16
 local Library do 
     local Workspace = game:GetService("Workspace")
     local UserInputService = game:GetService("UserInputService")
@@ -2709,7 +2709,7 @@ local Library do
                         Name = "\0",
                         Position = UDim2New(0.5, 0, 0, 20),
                         AnchorPoint = Vector2New(0.5, 0),
-                        Visible = true,
+                        Visible = false,   -- СКРЫТА: тоглом меню служит постоянный чип (иначе на телефоне 2 кнопки)
                         BorderColor3 = FromRGB(0, 0, 0),
                         Size = UDim2New(0, 50, 0, 50),
                         BorderSizePixel = 0,
