@@ -1,4 +1,4 @@
---Upgraded By Jianlobiano
+--fixedd
 local Library do 
     local Workspace = game:GetService("Workspace")
     local UserInputService = game:GetService("UserInputService")
@@ -6993,6 +6993,7 @@ local Library do
                 Callback = Data.Callback or Data.callback or function() end,
                 Size = Data.Size or Data.size or 125,
                 OptionHolderSize = Data.OptionHolderSize or Data.optionholder or 125,
+                OptionWidth = Data.OptionWidth or Data.optionwidth or nil,   -- ДОБАВЛЕНО: попап шире кнопки (длинные названия не режутся)
                 Multi = Data.Multi or Data.multi or false,
 
                 Value = { },
@@ -7254,13 +7255,19 @@ local Library do
                         if btnScale <= 0 then btnScale = 1 end
                         if parentScale <= 0 then parentScale = 1 end
                         OHScale.Scale = btnScale / parentScale       -- визуальный масштаб попапа = масштабу кнопки
-                        -- позиция обратной связью: доводим фактический AbsolutePosition под кнопку
                         local bp, bs = btn.AbsolutePosition, btn.AbsoluteSize
-                        local targetX, targetY = bp.X, bp.Y + bs.Y + 5
+                        local ow = bs.X / btnScale                                    -- ширина = кнопке...
+                        if Dropdown.OptionWidth and Dropdown.OptionWidth > ow then    -- ...или шире (OptionWidth),
+                            ow = Dropdown.OptionWidth                                 -- чтобы длинные названия влезали
+                        end
+                        -- позиция обратной связью: правый край попапа = правому краю кнопки
+                        -- (расширение уходит ВЛЕВО, за меню не вылезает)
+                        local targetX = bp.X + bs.X - ow * btnScale
+                        local targetY = bp.Y + bs.Y + 5
                         local cur = oh.AbsolutePosition
                         local p = oh.Position
                         oh.Position = UDim2New(0, p.X.Offset + (targetX - cur.X), 0, p.Y.Offset + (targetY - cur.Y))
-                        oh.Size = UDim2New(0, bs.X / btnScale, 0, Dropdown.OptionHolderSize)   -- ширина в дизайн-единицах → на экране = ширине кнопки
+                        oh.Size = UDim2New(0, ow, 0, Dropdown.OptionHolderSize)
                     end)
 
                     for Index, Value in Library.OpenFrames do 
