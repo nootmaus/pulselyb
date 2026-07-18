@@ -1,4 +1,4 @@
---Fixed v0.14
+--Fixed v0.15
 local Library do 
     local Workspace = game:GetService("Workspace")
     local UserInputService = game:GetService("UserInputService")
@@ -3937,9 +3937,30 @@ local Library do
             --]]
 
             function Window:Init()
-                for __, Value in Window.Pages do 
-                    if Value.Active then 
-                        for _, Value2 in Value.Sections do 
+                -- 1) КОНФИГ ПЕРВЫМ: применяем сохранённое (размер/тема/тумблеры) ДО показа меню —
+                --    никакого мелькания дефолтов при запуске
+                local loadedNamed = false
+                local loadedName = nil
+                local autoSavePath = Library.Folders.Configs .. "/_autosave.json"
+                pcall(function()
+                    local autoLoadFile = Library.Folders.Configs .. "/autoload.txt"
+                    if isfile(autoLoadFile) then
+                        local success, content = pcall(readfile, autoLoadFile)
+                        if success and content and isfile(content) then
+                            Library:LoadConfig(readfile(content))
+                            loadedNamed = true
+                            loadedName = content:match("([^/\\]+)$")
+                        end
+                    end
+                    if not loadedNamed and isfile(autoSavePath) then
+                        Library:LoadConfig(readfile(autoSavePath))
+                    end
+                end)
+
+                -- 2) твины элементов (как было)
+                for __, Value in Window.Pages do
+                    if Value.Active then
+                        for _, Value2 in Value.Sections do
                             task.spawn(function()
                                 Value2:TweenElements(true)
                                 Library:RefreshConfigsList(ConfigsDropdown)
@@ -3947,47 +3968,35 @@ local Library do
                         end
                     end
                 end
-                
-                -- Auto-load config on initialization (именованный autoload, затем авто-сейв сессии)
-                task.spawn(function()
-                    task.wait(0.5)
-                    local loadedNamed = false
-                    local autoLoadFile = Library.Folders.Configs .. "/autoload.txt"
-                    if isfile(autoLoadFile) then
-                        local success, content = pcall(readfile, autoLoadFile)
-                        if success and content and isfile(content) then
-                            Library:LoadConfig(readfile(content))
-                            loadedNamed = true
-                            Library:Notification({
-                                Title = "Config",
-                                Description = "Auto loaded config: " .. content:match("([^/\\]+)$"),
-                                Duration = 2
-                            })
-                        end
-                    end
 
-                    -- АВТО-СЕЙВ СЕССИИ: всё, что настроил, само сохраняется в _autosave.json и
-                    -- восстанавливается при перезапуске (если не задан именованный autoload).
-                    local autoSavePath = Library.Folders.Configs .. "/_autosave.json"
-                    if not loadedNamed and isfile(autoSavePath) then
-                        pcall(function() Library:LoadConfig(readfile(autoSavePath)) end)
-                    end
-                    task.spawn(function()
-                        if isfolder and not isfolder(Library.Folders.Configs) then pcall(makefolder, Library.Folders.Configs) end
-                        local last = nil
-                        while true do
-                            task.wait(2)
-                            pcall(function()   -- штампуем текущий размер окна → уходит в автосейв/конфиг
-                                local ms = Items["MainFrame"].Instance.Size
-                                Library.Flags["WindowSize"] = { math.floor(ms.X.Offset + 0.5), math.floor(ms.Y.Offset + 0.5) }
-                            end)
-                            local ok, enc = pcall(function() return Library:GetConfig() end)
-                            if ok and type(enc) == "string" and enc ~= last and writefile then
-                                pcall(writefile, autoSavePath, enc)
-                                last = enc
-                            end
+                -- 3) открываем меню УЖЕ НАСТРОЕННЫМ (в silent-режиме остаёмся скрытыми)
+                if not Window._silentLoad then
+                    task.defer(function() Window:SetOpen(true) end)
+                end
+                if loadedNamed and loadedName then
+                    Library:Notification({
+                        Title = "Config",
+                        Description = "Auto loaded config: " .. loadedName,
+                        Duration = 2
+                    })
+                end
+
+                -- 4) АВТО-СЕЙВ СЕССИИ: всё, что настроил, само сохраняется в _autosave.json
+                task.spawn(function()
+                    if isfolder and not isfolder(Library.Folders.Configs) then pcall(makefolder, Library.Folders.Configs) end
+                    local last = nil
+                    while true do
+                        task.wait(2)
+                        pcall(function()   -- штампуем текущий размер окна → уходит в автосейв/конфиг
+                            local ms = Items["MainFrame"].Instance.Size
+                            Library.Flags["WindowSize"] = { math.floor(ms.X.Offset + 0.5), math.floor(ms.Y.Offset + 0.5) }
+                        end)
+                        local ok, enc = pcall(function() return Library:GetConfig() end)
+                        if ok and type(enc) == "string" and enc ~= last and writefile then
+                            pcall(writefile, autoSavePath, enc)
+                            last = enc
                         end
-                    end)
+                    end
                 end)
             end
 
@@ -4010,6 +4019,7 @@ local Library do
                     end
                 end
             end)
+            Window._silentLoad = SilentLoadStart   -- читается в Window:Init (открывать ли меню после конфига)
 
             -- Center main frame before showing anything
             Window:SetCenter()
@@ -4190,8 +4200,8 @@ local Library do
                 task.wait(0.25)
                 IntroDone = true
 
-                -- now open main UI
-                Window:SetOpen(true)
+                -- меню НЕ открываем здесь: его откроет Window:Init() ПОСЛЕ применения конфига
+                -- (иначе при запуске мелькали дефолтные размер/настройки)
 
                 -- fade out intro and clean
                 Intro["Holder"]:Tween(TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
