@@ -1,4 +1,4 @@
-
+--nigo
 local Library do 
     local Workspace = game:GetService("Workspace")
     local UserInputService = game:GetService("UserInputService")
@@ -3120,22 +3120,33 @@ local Library do
                 function Window:SetCorner()
                     local v = Library.Flags["UICorner"]
                     if v == nil then v = 6 end
-                    local mf = Items["MainFrame"].Instance
-                    -- 1) угол самого MainFrame (основной контур меню)
-                    for _, d in ipairs(mf:GetChildren()) do
+                    -- ПРАВЫЕ 2 угла всего меню: UICorner самого окна (MainFrame)
+                    for _, d in ipairs(Items["MainFrame"].Instance:GetChildren()) do
                         if d:IsA("UICorner") then d.CornerRadius = UDimNew(0, v) end
                     end
-                    -- 2) ВСЕ фоновые слои меню — сиблинги MainFrame того же размера (блюр/фон),
-                    -- чтобы скруглились все 4 угла ВСЕГО меню. Внутренние фреймы (табы/кнопки/контент) НЕ трогаем.
+                    -- ЛЕВЫЕ 2 угла всего меню: UICorner ПАНЕЛИ табов (сам LeftTabs; кнопки табов внутри НЕ трогаем)
                     pcall(function()
-                        for _, d in ipairs(mf.Parent:GetChildren()) do
-                            if d ~= mf and (d:IsA("Frame") or d:IsA("ImageLabel") or d:IsA("CanvasGroup")) then
-                                if math.abs(d.AbsoluteSize.X - mf.AbsoluteSize.X) < 10 and math.abs(d.AbsoluteSize.Y - mf.AbsoluteSize.Y) < 10 then
-                                    local c = d:FindFirstChildOfClass("UICorner")
-                                    if c then c.CornerRadius = UDimNew(0, v) end
-                                end
-                            end
+                        local c = Items["LeftTabs"].Instance:FindFirstChildOfClass("UICorner")
+                        if c then c.CornerRadius = UDimNew(0, v) end
+                    end)
+                    -- Подложка контента (Content) прижата к низу окна и была БЕЗ угла — её квадратные
+                    -- нижние углы торчали ПОВЕРХ скругления окна. Даём ей тот же радиус.
+                    pcall(function()
+                        local ct = Items["Content"].Instance
+                        local c = ct:FindFirstChildOfClass("UICorner")
+                        if not c then
+                            c = Instance.new("UICorner")
+                            c.Name = "\0"
+                            c.Parent = ct
                         end
+                        c.CornerRadius = UDimNew(0, v)
+                    end)
+                    -- Декоративные «пиксели» в углах подогнаны под радиус 4 — при другом радиусе
+                    -- торчат квадратами. Показываем их только на дефолтном радиусе.
+                    pcall(function()
+                        local showPixels = (v == 4)
+                        if Items["LeftBottomPixels"] then Items["LeftBottomPixels"].Instance.Visible = showPixels end
+                        if Items["LeftTopPixels"] then Items["LeftTopPixels"].Instance.Visible = showPixels end
                     end)
                 end
 
