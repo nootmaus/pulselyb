@@ -1,4 +1,4 @@
---Up124
+--heker
 local Library do 
     local Workspace = game:GetService("Workspace")
     local UserInputService = game:GetService("UserInputService")
@@ -7097,13 +7097,22 @@ local Library do
                     Items["OptionHolder"].Instance.Visible = true
                     Items["OptionHolder"].Instance.Parent = Library.Holder.Instance
 
-                    -- FIX: попап живёт в НЕскейленом Library.Holder, а меню масштабируется UIScale
-                    -- (моб. 0.56 / слайдер UI Size). Без своего масштаба попап несоразмерный и уезжает
-                    -- «за меню». Вешаем на попап ТОТ ЖЕ масштаб и задаём размер в дизайн-единицах (÷Scale),
-                    -- чтобы на экране он совпал с шириной дропдауна и встал ровно под ним.
+                    -- FIX: попап живёт в Library.Holder, а кнопка дропдауна — под своими UIScale'ами
+                    -- (UI Size на MainFrame, возможные скейлы на холдере и т.п.). Масштаб попапа считаем
+                    -- КУМУЛЯТИВНО по цепочкам предков, позицию доводим ОБРАТНОЙ СВЯЗЬЮ по AbsolutePosition —
+                    -- работает при любой комбинации скейлов/инсетов.
                     local OHScale = Items["OptionHolder"].Instance:FindFirstChildOfClass("UIScale")
                     if not OHScale then
                         OHScale = Instances:Create("UIScale", { Parent = Items["OptionHolder"].Instance, Name = "\0", Scale = 1 }).Instance
+                    end
+                    local function CumulativeScale(inst)
+                        local s, cur = 1, inst
+                        while cur and cur ~= game do
+                            local us = cur:FindFirstChildOfClass("UIScale")
+                            if us and us ~= OHScale then s = s * us.Scale end
+                            cur = cur.Parent
+                        end
+                        return s
                     end
 
                     Items["ArrowIcon"]:Tween(nil, {Rotation = 180, ImageColor3 = FromRGB(255, 255, 255)})
@@ -7119,10 +7128,20 @@ local Library do
                     end)
 
                     RenderStepped = RunService.RenderStepped:Connect(function()
-                        local Scale = Library.Flags["UIScale"] or 1
-                        OHScale.Scale = Scale
-                        Items["OptionHolder"].Instance.Position = UDim2New(0, Items["RealDropdown"].Instance.AbsolutePosition.X, 0, Items["RealDropdown"].Instance.AbsolutePosition.Y + Items["RealDropdown"].Instance.AbsoluteSize.Y + 5)
-                        Items["OptionHolder"].Instance.Size = UDim2New(0, Items["RealDropdown"].Instance.AbsoluteSize.X / Scale, 0, Dropdown.OptionHolderSize)
+                        local btn = Items["RealDropdown"].Instance
+                        local oh = Items["OptionHolder"].Instance
+                        local btnScale = CumulativeScale(btn)
+                        local parentScale = oh.Parent and CumulativeScale(oh.Parent) or 1
+                        if btnScale <= 0 then btnScale = 1 end
+                        if parentScale <= 0 then parentScale = 1 end
+                        OHScale.Scale = btnScale / parentScale       -- визуальный масштаб попапа = масштабу кнопки
+                        -- позиция обратной связью: доводим фактический AbsolutePosition под кнопку
+                        local bp, bs = btn.AbsolutePosition, btn.AbsoluteSize
+                        local targetX, targetY = bp.X, bp.Y + bs.Y + 5
+                        local cur = oh.AbsolutePosition
+                        local p = oh.Position
+                        oh.Position = UDim2New(0, p.X.Offset + (targetX - cur.X), 0, p.Y.Offset + (targetY - cur.Y))
+                        oh.Size = UDim2New(0, bs.X / btnScale, 0, Dropdown.OptionHolderSize)   -- ширина в дизайн-единицах → на экране = ширине кнопки
                     end)
 
                     for Index, Value in Library.OpenFrames do 
