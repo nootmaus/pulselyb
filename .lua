@@ -1,4 +1,4 @@
---heker
+--pula12345
 local Library do 
     local Workspace = game:GetService("Workspace")
     local UserInputService = game:GetService("UserInputService")
@@ -3196,6 +3196,14 @@ local Library do
                 end
                 Window:SetCorner()   -- применяем дефолт сразу при сборке окна
 
+                -- РАЗМЕР ОКНА 1-в-1: ресайз тянучкой сохраняется в конфиг/автосейв и
+                -- восстанавливается при загрузке (флаг WindowSize, штампуется в автосейв-цикле)
+                Library.SetFlags["WindowSize"] = function(v)
+                    if type(v) == "table" and tonumber(v[1]) and tonumber(v[2]) then
+                        Items["MainFrame"].Instance.Size = UDim2New(0, math.clamp(tonumber(v[1]), 300, 3000), 0, math.clamp(tonumber(v[2]), 200, 2000))
+                    end
+                end
+
                 Instances:Create("UIGradient", {
                     Parent = Items["CloseIconAccent"].Instance,
                     Name = "\0",
@@ -3969,6 +3977,10 @@ local Library do
                         local last = nil
                         while true do
                             task.wait(2)
+                            pcall(function()   -- штампуем текущий размер окна → уходит в автосейв/конфиг
+                                local ms = Items["MainFrame"].Instance.Size
+                                Library.Flags["WindowSize"] = { math.floor(ms.X.Offset + 0.5), math.floor(ms.Y.Offset + 0.5) }
+                            end)
                             local ok, enc = pcall(function() return Library:GetConfig() end)
                             if ok and type(enc) == "string" and enc ~= last and writefile then
                                 pcall(writefile, autoSavePath, enc)
@@ -4070,6 +4082,67 @@ local Library do
                     ZIndex = 51
                 })
 
+                -- ═══ прогресс-бар загрузки (стиль либки: тёмный трек + акцент-градиент) ═══
+                Intro["BarTrack"] = Instances:Create("Frame", {
+                    Parent = Intro["Holder"].Instance,
+                    Name = "\0",
+                    AnchorPoint = Vector2New(0.5, 0.5),
+                    Position = UDim2New(0.5, 0, 0.5, 98),
+                    Size = UDim2New(0, 230, 0, 6),
+                    BackgroundColor3 = FromRGB(27, 25, 29),
+                    BackgroundTransparency = 1,
+                    BorderSizePixel = 0,
+                    ZIndex = 51
+                })
+                Instances:Create("UICorner", { Parent = Intro["BarTrack"].Instance, Name = "\0", CornerRadius = UDimNew(1, 0) })
+
+                Intro["BarFill"] = Instances:Create("Frame", {
+                    Parent = Intro["BarTrack"].Instance,
+                    Name = "\0",
+                    Size = UDim2New(0, 0, 1, 0),
+                    BackgroundColor3 = FromRGB(255, 255, 255),
+                    BackgroundTransparency = 1,
+                    BorderSizePixel = 0,
+                    ZIndex = 52
+                })
+                Instances:Create("UICorner", { Parent = Intro["BarFill"].Instance, Name = "\0", CornerRadius = UDimNew(1, 0) })
+                Instances:Create("UIGradient", {
+                    Parent = Intro["BarFill"].Instance,
+                    Name = "\0",
+                    Rotation = -102,
+                    Color = RGBSequence{RGBSequenceKeypoint(0, FromRGB(255, 255, 255)), RGBSequenceKeypoint(1, FromRGB(166, 166, 166))}
+                }):AddToTheme({Color = function()
+                    return RGBSequence{RGBSequenceKeypoint(0, Library.Theme.Accent), RGBSequenceKeypoint(1, Library.Theme.AccentGradient)}
+                end})
+
+                Intro["Percent"] = Instances:Create("TextLabel", {
+                    Parent = Intro["Holder"].Instance,
+                    Name = "\0",
+                    FontFace = Library.Font,
+                    Text = "0%",
+                    TextColor3 = FromRGB(255, 255, 255),
+                    TextTransparency = 1,
+                    BackgroundTransparency = 1,
+                    AnchorPoint = Vector2New(0.5, 0.5),
+                    Position = UDim2New(0.5, 0, 0.5, 120),
+                    TextSize = 15,
+                    ZIndex = 51
+                })
+
+                Intro["Status"] = Instances:Create("TextLabel", {
+                    Parent = Intro["Holder"].Instance,
+                    Name = "\0",
+                    FontFace = Library.Font,
+                    Text = "Loading...",
+                    TextColor3 = FromRGB(200, 200, 200),
+                    TextTransparency = 1,
+                    BackgroundTransparency = 1,
+                    AnchorPoint = Vector2New(0.5, 0.5),
+                    Position = UDim2New(0.5, 0, 0.5, 140),
+                    TextSize = 13,
+                    ZIndex = 51
+                })
+
                 -- quick fade-in + scale animation (runs while we wait)
                 Intro["Holder"]:Tween(TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
                     -- fairly transparent so world is still visible, like a light blur
@@ -4088,8 +4161,34 @@ local Library do
                     TextTransparency = 0
                 })
 
-                -- keep intro on screen for ~1.3s total before showing UI
-                task.wait(1.3)
+                -- проявляем прогресс-бар и подписи
+                Intro["BarTrack"]:Tween(TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 0.25 })
+                Intro["BarFill"]:Tween(TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 0 })
+                Intro["Percent"]:Tween(TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0.05 })
+                Intro["Status"]:Tween(TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0.3 })
+
+                -- ═══ ЗАГРУЗКА 0→100%: проценты обновляются каждый кадр по ширине полосы ═══
+                local IntroDone = false
+                Library:Thread(function()
+                    local RunSvc = game:GetService("RunService")
+                    while not IntroDone do
+                        RunSvc.RenderStepped:Wait()
+                        pcall(function()
+                            Intro["Percent"].Instance.Text = tostring(math.floor(Intro["BarFill"].Instance.Size.X.Scale * 100 + 0.5)) .. "%"
+                        end)
+                    end
+                end)
+                local function IntroStage(scale, text, time)
+                    pcall(function() Intro["Status"].Instance.Text = text end)
+                    Intro["BarFill"]:Tween(TweenInfo.new(time, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = UDim2New(scale, 0, 1, 0) })
+                    task.wait(time + 0.05)
+                end
+                IntroStage(0.34, "Loading assets...", 0.45)
+                IntroStage(0.71, "Building interface...", 0.55)
+                IntroStage(1, "Finishing up...", 0.45)
+                pcall(function() Intro["Status"].Instance.Text = "Done!" end)
+                task.wait(0.25)
+                IntroDone = true
 
                 -- now open main UI
                 Window:SetOpen(true)
@@ -4110,6 +4209,11 @@ local Library do
                 Intro["Logo"]:Tween(TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
                     Size = UDim2New(0, 0, 0, 0)
                 })
+
+                Intro["BarTrack"]:Tween(TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { BackgroundTransparency = 1 })
+                Intro["BarFill"]:Tween(TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { BackgroundTransparency = 1 })
+                Intro["Percent"]:Tween(TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { TextTransparency = 1 })
+                Intro["Status"]:Tween(TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { TextTransparency = 1 })
 
                 task.wait(0.35)
 
@@ -9269,6 +9373,118 @@ local Library do
                     end
                 end
             })
+
+            -- ═══ Collapse UI: сворачивает меню в фирменный мини-чип (стиль либки 1-в-1) ═══
+            do
+                local Chip = Instances:Create("TextButton", {
+                    Parent = Library.Holder.Instance,
+                    Name = "\0",
+                    Visible = false,
+                    AutoButtonColor = false,
+                    Text = "",
+                    Position = UDim2New(0, 20, 0, 20),
+                    Size = UDim2New(0, 96, 0, 30),
+                    BackgroundTransparency = 0.12,
+                    BackgroundColor3 = FromRGB(27, 25, 29),
+                    BorderSizePixel = 0,
+                    ZIndex = 10
+                })  Chip:AddToTheme({BackgroundColor3 = "Background"})
+
+                Instances:Create("UICorner", { Parent = Chip.Instance, Name = "\0", CornerRadius = UDimNew(0, 6) })
+
+                Instances:Create("UIStroke", {
+                    Parent = Chip.Instance,
+                    Name = "\0",
+                    Thickness = 1,
+                    Transparency = 0.6,
+                    Color = FromRGB(255, 255, 255)
+                }):AddToTheme({Color = "Accent"})
+
+                local ChipBar = Instances:Create("Frame", {
+                    Parent = Chip.Instance,
+                    Name = "\0",
+                    AnchorPoint = Vector2New(0, 0.5),
+                    Position = UDim2New(0, 9, 0.5, 0),
+                    Size = UDim2New(0, 4, 0, 14),
+                    BorderSizePixel = 0,
+                    ZIndex = 11,
+                    BackgroundColor3 = FromRGB(255, 255, 255)
+                })  ChipBar:AddToTheme({BackgroundColor3 = "Accent"})
+                Instances:Create("UICorner", { Parent = ChipBar.Instance, Name = "\0", CornerRadius = UDimNew(1, 0) })
+                Instances:Create("UIGradient", {
+                    Parent = ChipBar.Instance,
+                    Name = "\0",
+                    Rotation = 90,
+                    Color = RGBSequence{RGBSequenceKeypoint(0, FromRGB(255, 255, 255)), RGBSequenceKeypoint(1, FromRGB(166, 166, 166))}
+                }):AddToTheme({Color = function()
+                    return RGBSequence{RGBSequenceKeypoint(0, Library.Theme.Accent), RGBSequenceKeypoint(1, Library.Theme.AccentGradient)}
+                end})
+
+                Instances:Create("TextLabel", {
+                    Parent = Chip.Instance,
+                    Name = "\0",
+                    FontFace = Library.Font,
+                    Text = "Open UI",
+                    TextSize = 12,
+                    TextColor3 = FromRGB(240, 240, 240),
+                    TextTransparency = 0.1,
+                    BackgroundTransparency = 1,
+                    AnchorPoint = Vector2New(0, 0.5),
+                    Position = UDim2New(0, 21, 0.5, 0),
+                    Size = UDim2New(1, -25, 0, 14),
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    ZIndex = 11
+                }):AddToTheme({TextColor3 = "Text"})
+
+                -- драг мультитач-safe (жёстко привязан к пальцу, джойстик не дёргает), тап без сдвига = развернуть
+                local ChipDragInput, ChipMoved, ChipDragStart, ChipStartPos
+                Chip:Connect("InputBegan", function(Input)
+                    if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+                        ChipDragInput, ChipMoved, ChipDragStart, ChipStartPos = Input, false, Input.Position, Chip.Instance.Position
+                    end
+                end)
+                Library:Connect(UserInputService.InputChanged, function(Input)
+                    if not ChipDragInput then return end
+                    local Same
+                    if ChipDragInput.UserInputType == Enum.UserInputType.Touch then
+                        Same = (Input == ChipDragInput)
+                    else
+                        Same = (Input.UserInputType == Enum.UserInputType.MouseMovement)
+                    end
+                    if not Same then return end
+                    local Delta = Input.Position - ChipDragStart
+                    if math.abs(Delta.X) > 6 or math.abs(Delta.Y) > 6 then ChipMoved = true end
+                    if ChipMoved then
+                        Chip.Instance.Position = UDim2New(ChipStartPos.X.Scale, ChipStartPos.X.Offset + Delta.X, ChipStartPos.Y.Scale, ChipStartPos.Y.Offset + Delta.Y)
+                    end
+                end)
+                Library:Connect(UserInputService.InputEnded, function(Input)
+                    if ChipDragInput ~= Input then return end
+                    local WasMoved = ChipMoved
+                    ChipDragInput, ChipMoved = nil, false
+                    if not WasMoved then
+                        Chip.Instance.Visible = false
+                        Window:SetOpen(true)
+                    end
+                end)
+
+                -- если меню открыли клавишей (RightAlt) — чип прячется сам
+                Library:Thread(function()
+                    while true do
+                        task.wait(0.3)
+                        if Window.IsOpen and Chip.Instance.Visible then Chip.Instance.Visible = false end
+                    end
+                end)
+
+                UISection:Button({
+                    Name = "Collapse UI",
+                    Callback = function()
+                        Window:SetOpen(false)
+                        task.wait(0.35)
+                        Chip.Instance.Visible = true
+                    end
+                })
+            end
 
             UISection:Button({
                 Name = "Unload Script",
