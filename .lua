@@ -1,4 +1,4 @@
---pula12345
+
 local Library do 
     local Workspace = game:GetService("Workspace")
     local UserInputService = game:GetService("UserInputService")
@@ -9374,38 +9374,75 @@ local Library do
                 end
             })
 
-            -- ═══ Collapse UI: сворачивает меню в фирменный мини-чип (стиль либки 1-в-1) ═══
+            -- ═══ ПОСТОЯННЫЙ ЧИП-ТУМБЛЕР МЕНЮ (стиль либки): всегда на экране, по центру сверху.
+            -- Тап — сворачивает/разворачивает меню. Драг — перетащить. Лого + имя хаба + акцент-полоса.
             do
                 local Chip = Instances:Create("TextButton", {
                     Parent = Library.Holder.Instance,
                     Name = "\0",
-                    Visible = false,
+                    Visible = true,
                     AutoButtonColor = false,
                     Text = "",
-                    Position = UDim2New(0, 20, 0, 20),
-                    Size = UDim2New(0, 96, 0, 30),
-                    BackgroundTransparency = 0.12,
+                    AnchorPoint = Vector2New(0.5, 0),
+                    Position = UDim2New(0.5, 0, 0, 12),
+                    Size = UDim2New(0, 150, 0, 38),
+                    BackgroundTransparency = 0.08,
                     BackgroundColor3 = FromRGB(27, 25, 29),
                     BorderSizePixel = 0,
                     ZIndex = 10
                 })  Chip:AddToTheme({BackgroundColor3 = "Background"})
 
-                Instances:Create("UICorner", { Parent = Chip.Instance, Name = "\0", CornerRadius = UDimNew(0, 6) })
+                Instances:Create("UICorner", { Parent = Chip.Instance, Name = "\0", CornerRadius = UDimNew(0, 8) })
 
                 Instances:Create("UIStroke", {
                     Parent = Chip.Instance,
                     Name = "\0",
                     Thickness = 1,
-                    Transparency = 0.6,
+                    Transparency = 0.45,
                     Color = FromRGB(255, 255, 255)
                 }):AddToTheme({Color = "Accent"})
 
+                -- лого хаба слева (кругляш)
+                local ChipTextX = 12
+                if Window.Logo then
+                    local ChipLogo = Instances:Create("ImageLabel", {
+                        Parent = Chip.Instance,
+                        Name = "\0",
+                        Image = "rbxassetid://" .. Window.Logo,
+                        BackgroundTransparency = 1,
+                        AnchorPoint = Vector2New(0, 0.5),
+                        Position = UDim2New(0, 9, 0.5, -2),
+                        Size = UDim2New(0, 22, 0, 22),
+                        ZIndex = 11
+                    })
+                    Instances:Create("UICorner", { Parent = ChipLogo.Instance, Name = "\0", CornerRadius = UDimNew(1, 0) })
+                    ChipTextX = 38
+                end
+
+                -- имя хаба шрифтом либки
+                Instances:Create("TextLabel", {
+                    Parent = Chip.Instance,
+                    Name = "\0",
+                    FontFace = Library.Font,
+                    Text = Window.Name or "Menu",
+                    TextSize = 14,
+                    TextColor3 = FromRGB(240, 240, 240),
+                    TextTransparency = 0.05,
+                    BackgroundTransparency = 1,
+                    AnchorPoint = Vector2New(0, 0.5),
+                    Position = UDim2New(0, ChipTextX, 0.5, -2),
+                    Size = UDim2New(1, -ChipTextX - 8, 0, 16),
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    ZIndex = 11
+                }):AddToTheme({TextColor3 = "Text"})
+
+                -- акцент-градиентная полоса снизу (фирменный элемент либки)
                 local ChipBar = Instances:Create("Frame", {
                     Parent = Chip.Instance,
                     Name = "\0",
-                    AnchorPoint = Vector2New(0, 0.5),
-                    Position = UDim2New(0, 9, 0.5, 0),
-                    Size = UDim2New(0, 4, 0, 14),
+                    AnchorPoint = Vector2New(0.5, 1),
+                    Position = UDim2New(0.5, 0, 1, -4),
+                    Size = UDim2New(1, -18, 0, 2),
                     BorderSizePixel = 0,
                     ZIndex = 11,
                     BackgroundColor3 = FromRGB(255, 255, 255)
@@ -9414,29 +9451,13 @@ local Library do
                 Instances:Create("UIGradient", {
                     Parent = ChipBar.Instance,
                     Name = "\0",
-                    Rotation = 90,
                     Color = RGBSequence{RGBSequenceKeypoint(0, FromRGB(255, 255, 255)), RGBSequenceKeypoint(1, FromRGB(166, 166, 166))}
                 }):AddToTheme({Color = function()
                     return RGBSequence{RGBSequenceKeypoint(0, Library.Theme.Accent), RGBSequenceKeypoint(1, Library.Theme.AccentGradient)}
                 end})
 
-                Instances:Create("TextLabel", {
-                    Parent = Chip.Instance,
-                    Name = "\0",
-                    FontFace = Library.Font,
-                    Text = "Open UI",
-                    TextSize = 12,
-                    TextColor3 = FromRGB(240, 240, 240),
-                    TextTransparency = 0.1,
-                    BackgroundTransparency = 1,
-                    AnchorPoint = Vector2New(0, 0.5),
-                    Position = UDim2New(0, 21, 0.5, 0),
-                    Size = UDim2New(1, -25, 0, 14),
-                    TextXAlignment = Enum.TextXAlignment.Left,
-                    ZIndex = 11
-                }):AddToTheme({TextColor3 = "Text"})
-
-                -- драг мультитач-safe (жёстко привязан к пальцу, джойстик не дёргает), тап без сдвига = развернуть
+                -- драг мультитач-safe (жёстко привязан к пальцу, джойстик не дёргает),
+                -- тап без сдвига = свернуть/развернуть меню
                 local ChipDragInput, ChipMoved, ChipDragStart, ChipStartPos
                 Chip:Connect("InputBegan", function(Input)
                     if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
@@ -9463,16 +9484,7 @@ local Library do
                     local WasMoved = ChipMoved
                     ChipDragInput, ChipMoved = nil, false
                     if not WasMoved then
-                        Chip.Instance.Visible = false
-                        Window:SetOpen(true)
-                    end
-                end)
-
-                -- если меню открыли клавишей (RightAlt) — чип прячется сам
-                Library:Thread(function()
-                    while true do
-                        task.wait(0.3)
-                        if Window.IsOpen and Chip.Instance.Visible then Chip.Instance.Visible = false end
+                        Window:SetOpen(not Window.IsOpen)   -- тумблер: открыто → свернуть, свёрнуто → открыть
                     end
                 end)
 
@@ -9480,8 +9492,6 @@ local Library do
                     Name = "Collapse UI",
                     Callback = function()
                         Window:SetOpen(false)
-                        task.wait(0.35)
-                        Chip.Instance.Visible = true
                     end
                 })
             end
