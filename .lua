@@ -1,4 +1,4 @@
-
+--Upgraded By Jianlobiano
 local Library do 
     local Workspace = game:GetService("Workspace")
     local UserInputService = game:GetService("UserInputService")
@@ -6884,15 +6884,30 @@ local Library do
                 Items["Accent"]:Tween(TweenInfo.new(Library.Tween.Time, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = UDim2New((Slider.Value - Slider.Min) / (Slider.Max - Slider.Min), 0, 1, 0)})
                 Items["Value"].Instance.Text = StringFormat("%s%s", Slider.Value, Slider.Suffix)
 
-                if Slider.Value >= Slider.Max then 
+                if Slider.Value >= Slider.Max then
                     Items["Icon"].Instance.Position = UDim2New(1, -5, 0.5, 0)
                 else
                     Items["Icon"].Instance.Position = UDim2New(1, 5, 0.5, 0)
                 end
 
-                if Slider.Callback then 
+                if Slider.Callback then
                     Library:SafeCall(Slider.Callback, Slider.Value)
                 end
+            end
+
+            -- ДОБАВЛЕНО: смена границ слайдера на лету (значение переклампливается, полоса перерисовывается)
+            function Slider:SetMax(NewMax)
+                NewMax = tonumber(NewMax)
+                if not NewMax or NewMax <= Slider.Min then return end
+                Slider.Max = NewMax
+                Slider:Set(Slider.Value)
+            end
+
+            function Slider:SetMin(NewMin)
+                NewMin = tonumber(NewMin)
+                if not NewMin or NewMin >= Slider.Max then return end
+                Slider.Min = NewMin
+                Slider:Set(Slider.Value)
             end
 
             Items["Plus"]:Connect("MouseButton1Down", function()
