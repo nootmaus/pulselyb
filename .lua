@@ -1,4 +1,4 @@
---fixedd
+--Fixed v0.14
 local Library do 
     local Workspace = game:GetService("Workspace")
     local UserInputService = game:GetService("UserInputService")
@@ -9408,13 +9408,27 @@ local Library do
                     AnchorPoint = Vector2New(0.5, 0),
                     Position = UDim2New(0.5, 0, 0, 12),
                     Size = UDim2New(0, 150, 0, 38),
-                    BackgroundTransparency = 0.08,
+                    BackgroundTransparency = Library.Flags["BackgroundTransparency"] or 0.12,   -- как у окна меню
                     BackgroundColor3 = FromRGB(27, 25, 29),
                     BorderSizePixel = 0,
                     ZIndex = 10
                 })  Chip:AddToTheme({BackgroundColor3 = "Background"})
 
                 Instances:Create("UICorner", { Parent = Chip.Instance, Name = "\0", CornerRadius = UDimNew(0, 8) })
+
+                -- стеклянный блюр позади чипа — тот же эффект, что у окна либки
+                pcall(function() Library:MakeBlurred(Chip, Window) end)
+
+                -- прозрачность чипа живёт вместе со слайдером Menu Transparency
+                pcall(function()
+                    local OldSetTransparency = Window.SetTransparency
+                    Window.SetTransparency = function(selfW, ...)
+                        OldSetTransparency(selfW, ...)
+                        pcall(function()
+                            Chip.Instance.BackgroundTransparency = Library.Flags["BackgroundTransparency"] or 0.12
+                        end)
+                    end
+                end)
 
                 Instances:Create("UIStroke", {
                     Parent = Chip.Instance,
