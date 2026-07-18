@@ -1,4 +1,4 @@
---nigo
+--312
 local Library do 
     local Workspace = game:GetService("Workspace")
     local UserInputService = game:GetService("UserInputService")
@@ -3141,12 +3141,39 @@ local Library do
                         end
                         c.CornerRadius = UDimNew(0, v)
                     end)
-                    -- Декоративные «пиксели» в углах подогнаны под радиус 4 — при другом радиусе
-                    -- торчат квадратами. Показываем их только на дефолтном радиусе.
+                    -- СШИВКА СТЫКА: UICorner скругляет все 4 угла, поэтому на стыке панели табов и окна
+                    -- вылезали «клинья» фона (панели визуально разделялись). Квадратные заполнители v×v
+                    -- той же расцветки закрывают ВНУТРЕННИЕ (стыковые) углы: снаружи скруглено, стык — монолит.
                     pcall(function()
-                        local showPixels = (v == 4)
-                        if Items["LeftBottomPixels"] then Items["LeftBottomPixels"].Instance.Visible = showPixels end
-                        if Items["LeftTopPixels"] then Items["LeftTopPixels"].Instance.Visible = showPixels end
+                        local mf = Items["MainFrame"].Instance
+                        local lt = Items["LeftTabs"] and Items["LeftTabs"].Instance
+                        local function filler(name, src, ax, ay, py, zi)
+                            local f = mf:FindFirstChild(name)
+                            if not f then
+                                f = Instance.new("Frame")
+                                f.Name = name
+                                f.BorderSizePixel = 0
+                                f.Parent = mf
+                            end
+                            f.AnchorPoint = Vector2New(ax, ay)
+                            f.Position = UDim2New(0, 0, py, 0)
+                            f.Size = UDim2New(0, v, 0, v)
+                            f.BackgroundColor3 = src.BackgroundColor3
+                            f.BackgroundTransparency = src.BackgroundTransparency
+                            f.ZIndex = zi
+                            f.Visible = v > 0
+                        end
+                        filler("SeamMFTop", mf, 0, 0, 0, 1)                    -- левый верх окна (под остальными детьми)
+                        filler("SeamMFBot", mf, 0, 1, 1, 1)                    -- левый низ окна
+                        if lt then
+                            filler("SeamLTTop", lt, 1, 0, 0, lt.ZIndex)        -- правый верх панели табов (поверх неё)
+                            filler("SeamLTBot", lt, 1, 1, 1, lt.ZIndex)        -- правый низ панели табов
+                        end
+                    end)
+                    -- Декоративные «пиксели» была подгонка под радиус 4 — сшивка их заменяет, прячем всегда.
+                    pcall(function()
+                        if Items["LeftBottomPixels"] then Items["LeftBottomPixels"].Instance.Visible = false end
+                        if Items["LeftTopPixels"] then Items["LeftTopPixels"].Instance.Visible = false end
                     end)
                 end
 
