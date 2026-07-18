@@ -1,4 +1,4 @@
---312
+--Up124
 local Library do 
     local Workspace = game:GetService("Workspace")
     local UserInputService = game:GetService("UserInputService")
@@ -2565,7 +2565,7 @@ local Library do
                     Name = "\0",
                     BorderColor3 = FromRGB(0, 0, 0),
                     AnchorPoint = Vector2New(0.5, 0.5),
-                    BackgroundTransparency = 0.12,
+                    BackgroundTransparency = 1,   -- фон окна рисует WindowBG (клип-прокси ниже), сам MainFrame прозрачный
                     Position = UDim2New(0.5519999861717224, 0, 0.5, 0),
                     Size = UDim2New(0, 677, 0, 644),
                     ZIndex = 2,
@@ -2586,15 +2586,58 @@ local Library do
 
                 Items["MainFrame"]:MakeResizeable(Vector2New(Items["MainFrame"].Instance.AbsoluteSize.X, Items["MainFrame"].Instance.AbsoluteSize.Y), Vector2New(9999, 9999), OriginalSizes)
                 Library:MakeBlurred(Items["MainFrame"], Window)
-                
-                Items["LeftTabs"] = Instances:Create("ScrollingFrame", {
+
+                -- ФОН ОКНА через клип-прокси: видимый фон — WindowBG, он на 20px шире ВЛЕВО и обрезан
+                -- клипом → его левые углы всегда ПРЯМЫЕ (стык с панелью табов — монолит, без клиньев
+                -- и без наложения полупрозрачных слоёв), правые углы скругляет UICorner (SetCorner).
+                Items["WindowClip"] = Instances:Create("Frame", {
                     Parent = Items["MainFrame"].Instance,
+                    Name = "\0",
+                    BackgroundTransparency = 1,
+                    Size = UDim2New(1, 0, 1, 0),
+                    ZIndex = 1,
+                    BorderSizePixel = 0,
+                    ClipsDescendants = true
+                })
+
+                Items["WindowBG"] = Instances:Create("Frame", {
+                    Parent = Items["WindowClip"].Instance,
+                    Name = "\0",
+                    BackgroundTransparency = 0.12,
+                    Position = UDim2New(0, -20, 0, 0),
+                    Size = UDim2New(1, 20, 1, 0),
+                    ZIndex = 1,
+                    BorderSizePixel = 0,
+                    BackgroundColor3 = FromRGB(27, 25, 29)
+                })  Items["WindowBG"]:AddToTheme({BackgroundColor3 = "Background"})
+
+                Instances:Create("UICorner", {
+                    Parent = Items["WindowBG"].Instance,
+                    Name = "\0",
+                    CornerRadius = UDimNew(0, 4)
+                })
+                
+                -- ПАНЕЛЬ ТАБОВ через клип: панель на 20px шире ВПРАВО и обрезана клипом → её правые
+                -- углы всегда ПРЯМЫЕ (стык с окном — монолит), левые скругляет UICorner (SetCorner).
+                Items["LeftTabsClip"] = Instances:Create("Frame", {
+                    Parent = Items["MainFrame"].Instance,
+                    Name = "\0",
+                    AnchorPoint = Vector2New(1, 0),
+                    BackgroundTransparency = 1,
+                    Size = UDim2New(0, 225, 1, 0),
+                    ZIndex = 2,
+                    BorderSizePixel = 0,
+                    ClipsDescendants = true
+                })
+
+                Items["LeftTabs"] = Instances:Create("ScrollingFrame", {
+                    Parent = Items["LeftTabsClip"].Instance,
                     Name = "\0",
                     Visible = true,
                     BorderColor3 = FromRGB(0, 0, 0),
-                    AnchorPoint = Vector2New(1, 0),
+                    AnchorPoint = Vector2New(0, 0),
                     BackgroundTransparency = 0.15,
-                    Size = UDim2New(0, 225, 1, 0),
+                    Size = UDim2New(1, 20, 1, 0),
                     ZIndex = 2,
                     BorderSizePixel = 0,
                     BackgroundColor3 = FromRGB(27, 25, 29),
@@ -3086,8 +3129,9 @@ local Library do
                 end
 
                 function Window:SetTransparency()
-                    Items["MainFrame"].Instance.BackgroundTransparency = Library.Flags["BackgroundTransparency"] 
-                    Items["LeftTabs"].Instance.BackgroundTransparency = Library.Flags["BackgroundTransparency"]  
+                    -- фон окна теперь рисует WindowBG (MainFrame всегда прозрачный — см. клип-прокси)
+                    Items["WindowBG"].Instance.BackgroundTransparency = Library.Flags["BackgroundTransparency"]
+                    Items["LeftTabs"].Instance.BackgroundTransparency = Library.Flags["BackgroundTransparency"]
                     if IsMobile then
                         Items["FloatingButton"].Instance.BackgroundTransparency = Library.Flags["BackgroundTransparency"]  
                     end
@@ -3117,14 +3161,17 @@ local Library do
 
                 -- ДОБАВЛЕНО: сила скругления UI. Ставит радиус всем НЕ-круглым UICorner меню
                 -- (у круглых Scale>0, напр. UDim(1,0) — иконки/ползунки — не трогаем, иначе сломаются).
+                -- UI Corner: скругляются ТОЛЬКО внешние 4 угла всего меню.
+                -- Левые 2 = панель табов (LeftTabs, левые углы; правые обрезает LeftTabsClip).
+                -- Правые 2 = фон окна (WindowBG, правые углы; левые обрезает WindowClip).
+                -- Стык панели и окна — монолит без клиньев и наложений (обрезка вместо заплаток).
                 function Window:SetCorner()
                     local v = Library.Flags["UICorner"]
                     if v == nil then v = 6 end
-                    -- ПРАВЫЕ 2 угла всего меню: UICorner самого окна (MainFrame)
-                    for _, d in ipairs(Items["MainFrame"].Instance:GetChildren()) do
-                        if d:IsA("UICorner") then d.CornerRadius = UDimNew(0, v) end
-                    end
-                    -- ЛЕВЫЕ 2 угла всего меню: UICorner ПАНЕЛИ табов (сам LeftTabs; кнопки табов внутри НЕ трогаем)
+                    pcall(function()
+                        local c = Items["WindowBG"].Instance:FindFirstChildOfClass("UICorner")
+                        if c then c.CornerRadius = UDimNew(0, v) end
+                    end)
                     pcall(function()
                         local c = Items["LeftTabs"].Instance:FindFirstChildOfClass("UICorner")
                         if c then c.CornerRadius = UDimNew(0, v) end
@@ -3141,41 +3188,13 @@ local Library do
                         end
                         c.CornerRadius = UDimNew(0, v)
                     end)
-                    -- СШИВКА СТЫКА: UICorner скругляет все 4 угла, поэтому на стыке панели табов и окна
-                    -- вылезали «клинья» фона (панели визуально разделялись). Квадратные заполнители v×v
-                    -- той же расцветки закрывают ВНУТРЕННИЕ (стыковые) углы: снаружи скруглено, стык — монолит.
-                    pcall(function()
-                        local mf = Items["MainFrame"].Instance
-                        local lt = Items["LeftTabs"] and Items["LeftTabs"].Instance
-                        local function filler(name, src, ax, ay, py, zi)
-                            local f = mf:FindFirstChild(name)
-                            if not f then
-                                f = Instance.new("Frame")
-                                f.Name = name
-                                f.BorderSizePixel = 0
-                                f.Parent = mf
-                            end
-                            f.AnchorPoint = Vector2New(ax, ay)
-                            f.Position = UDim2New(0, 0, py, 0)
-                            f.Size = UDim2New(0, v, 0, v)
-                            f.BackgroundColor3 = src.BackgroundColor3
-                            f.BackgroundTransparency = src.BackgroundTransparency
-                            f.ZIndex = zi
-                            f.Visible = v > 0
-                        end
-                        filler("SeamMFTop", mf, 0, 0, 0, 1)                    -- левый верх окна (под остальными детьми)
-                        filler("SeamMFBot", mf, 0, 1, 1, 1)                    -- левый низ окна
-                        if lt then
-                            filler("SeamLTTop", lt, 1, 0, 0, lt.ZIndex)        -- правый верх панели табов (поверх неё)
-                            filler("SeamLTBot", lt, 1, 1, 1, lt.ZIndex)        -- правый низ панели табов
-                        end
-                    end)
-                    -- Декоративные «пиксели» была подгонка под радиус 4 — сшивка их заменяет, прячем всегда.
+                    -- Декоративные «пиксели» были подгонкой под старую геометрию (радиус 4) — прячем всегда.
                     pcall(function()
                         if Items["LeftBottomPixels"] then Items["LeftBottomPixels"].Instance.Visible = false end
                         if Items["LeftTopPixels"] then Items["LeftTopPixels"].Instance.Visible = false end
                     end)
                 end
+                Window:SetCorner()   -- применяем дефолт сразу при сборке окна
 
                 Instances:Create("UIGradient", {
                     Parent = Items["CloseIconAccent"].Instance,
